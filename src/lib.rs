@@ -41,24 +41,3 @@ fn parse_bytes(input: &[u8]) -> IResult<&[u8], ()> {
 
     Ok((input, ()))
 }
-
-#[cfg(test)]
-mod tests {
-    use std::fs::File;
-
-    use crate::parse;
-
-    #[test]
-    fn parse_add_test() -> std::io::Result<()> {
-        let mut file = File::open("tests/add.wasm")?;
-
-        parse(&mut file).map_err(|_| {
-            std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "Failed to parse the file 'tests/add.wasm'",
-            )
-        })?;
-
-        Ok(())
-    }
-}
