@@ -1,22 +1,14 @@
-use nom::{
-    bytes::complete::{tag, take},
-    combinator::map,
-    multi::fold_many0,
-    number::complete::u8,
-    sequence::tuple,
-    IResult,
-};
-use nom_leb128::leb128_u32;
+use nom::{bytes::complete::tag, multi::fold_many0, IResult};
 use std::{
     fs::File,
     io::{self, Read},
 };
 use thiserror::Error;
-use wasm_parsers::ValueType;
 
-use crate::wasm_parsers::{valtype, vec};
+use crate::wasm::Sections::Section;
 
-mod wasm_parsers;
+mod error;
+pub mod wasm;
 
 #[derive(Error, Debug)]
 pub enum WasmParseError {
@@ -36,13 +28,11 @@ pub fn parse(file: &mut File) -> Result<(), WasmParseError> {
     Ok(output)
 }
 
-pub enum WasmSection {}
-
 fn parse_bytes(input: &[u8]) -> IResult<&[u8], ()> {
     let (input, _magic) = tag("\0asm")(input)?;
     let (input, _version) = tag(&[0x01, 0x00, 0x00, 0x00])(input)?;
 
-    let (input, sections) = fold_many0(parse_section, Vec::new, |mut acc, item| {
+    let (input, sections) = fold_many0(Section::parse, Vec::new, |mut acc, item| {
         acc.push(item);
         acc
     })(input)?;
@@ -50,44 +40,6 @@ fn parse_bytes(input: &[u8]) -> IResult<&[u8], ()> {
     println!("{:#?}", sections);
 
     Ok((input, ()))
-}
-
-fn parse_section(input: &[u8]) -> IResult<&[u8], Section> {
-    let (input, (section_id, section_size)) = tuple((u8, leb128_u32))(input)?;
-
-    let (input, section_bytes) = take(section_size)(input)?;
-
-    println!("SectionId: {section_id}  |  SectionSize: {section_size}");
-    let (_, section) = match section_id {
-        0 => todo!("Implement custom section"),
-        1 => map(
-            vec(map(
-                tuple((tag(&[0x60]), vec(valtype), vec(valtype))),
-                |(_, params_types, result_types)| (params_types, result_types),
-            )),
-            |functions_types| Section::TypeSection(functions_types),
-        )(section_bytes)?,
-        2 => todo!("Implement import section"),
-        3 => todo!("Implement function section"),
-        4 => todo!("Implement table section"),
-        5 => todo!("Implement memory section"),
-        6 => todo!("Implement global section"),
-        7 => todo!("Implement export section"),
-        8 => todo!("Implement start section"),
-        9 => todo!("Implement element section"),
-        10 => todo!("Implement code section"),
-        11 => todo!("Implement data section"),
-        12 => todo!("Implement data count section"),
-
-        unknown_section_id => todo!("Unrecognized section: {unknown_section_id}"),
-    };
-
-    Ok((input, section))
-}
-
-#[derive(Debug)]
-pub enum Section {
-    TypeSection(Vec<(Vec<ValueType>, Vec<ValueType>)>),
 }
 
 #[cfg(test)]
