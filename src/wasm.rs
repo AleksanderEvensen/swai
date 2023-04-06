@@ -1,2 +1,3 @@
-pub mod Sections;
-pub mod Types;
+pub mod module;
+pub mod sections;
+pub mod types;

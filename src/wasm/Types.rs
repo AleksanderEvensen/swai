@@ -32,7 +32,12 @@ impl Name {
     pub(crate) fn parse(input: &[u8]) -> IResult<&[u8], Name> {
         let (input, bytes) = vec(u8)(input)?;
 
-        let str = String::from_utf8(bytes).unwrap();
+        let str = match String::from_utf8(bytes) {
+            Ok(v) => v,
+            Err(e) => {
+                panic!("Something went wrong when converting utf8 bytes to string: {e}")
+            }
+        };
 
         Ok((input, Name(str)))
     }
@@ -48,7 +53,7 @@ pub enum NumberTypes {
 impl From<u8> for NumberTypes {
     fn from(value: u8) -> Self {
         match value {
-            0x74 => NumberTypes::i32,
+            0x7F => NumberTypes::i32,
             0x7E => NumberTypes::i64,
             0x7D => NumberTypes::f32,
             0x7C => NumberTypes::f64,

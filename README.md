@@ -1,3 +1,3 @@
-# SWAP (Simple WebAssembly Parser)
+# SWAI (Simple WebAssembly Interpreter)
 
-a Simple Web Assembly Parser
+Well what more can i say. It's just a "simple WebAssembly Interpreter"

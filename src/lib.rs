@@ -5,7 +5,7 @@ use std::{
 };
 use thiserror::Error;
 
-use crate::wasm::Sections::Section;
+use crate::wasm::sections::Section;
 
 mod error;
 pub mod wasm;
