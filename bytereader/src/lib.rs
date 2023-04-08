@@ -96,10 +96,32 @@ impl ByteReader {
     pub fn get_current_offset(&self) -> usize {
         self.offset
     }
-    pub fn read_bytes(&mut self, bytes: usize) -> Result<&[u8], ByteReaderError> {
-        let data = self.peak_bytes(bytes)?;
+    pub fn read_bytes<'a>(&'a mut self, bytes: usize) -> Result<&'a [u8], ByteReaderError> {
+        // Was hoping for an easier way by using peak_bytes, but couldn't figure out with out the borrowing problems
+        // --- example ---
+        // let data = self.peak_bytes()?;
+        // self.offset += bytes;
+        // return Ok(data)
+
+        if self.offset + bytes > self.data.len() {
+            return Err(ByteReaderError::OutOfBounds {
+                length: self.data.len(),
+                start: self.offset,
+                end: self.offset + bytes,
+            });
+        }
+
+        let data = self
+            .data
+            .get(self.offset..self.offset + bytes)
+            .ok_or_else(|| ByteReaderError::OutOfBounds {
+                length: self.data.len(),
+                start: self.offset,
+                end: self.offset + bytes,
+            })?;
+
         self.offset += bytes;
-        Ok(data)
+        return Ok(data);
     }
     pub fn peak_bytes<'a>(&'a self, bytes: usize) -> Result<&'a [u8], ByteReaderError> {
         if self.offset + bytes > self.data.len() {
