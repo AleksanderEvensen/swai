@@ -1,11 +1,17 @@
+[workspace]
+members = [
+	"bytereader",
+	"swai-parser"
+]
+
+
 [package]
 name = "swai"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+description = "A Simple WebAssembly Interpreter"
 
 [dependencies]
 nom = "7.1.3"
 nom-leb128 = "0.2.0"
-thiserror = "1.0.40"
+swai-parser = { path = "./swai-parser" }
