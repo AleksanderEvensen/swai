@@ -41,7 +41,7 @@ pub struct ByteReader {
 }
 
 impl ByteReader {
-    pub fn from_vec(vec: &Vec<u8>) -> Self {
+    pub fn from_vec(vec: &[u8]) -> Self {
         Self {
             data: vec.to_vec(),
             offset: 0,
@@ -63,25 +63,25 @@ impl ByteReader {
 }
 
 impl ByteReader {
-    pub fn set_endian<'a>(&'a mut self, endian: Endian) -> &'a mut Self {
+    pub fn set_endian(&mut self, endian: Endian) -> &mut Self {
         self.endian = endian;
         self
     }
-    pub fn move_to<'a>(&'a mut self, offset: usize) -> &'a mut Self {
+    pub fn move_to(&mut self, offset: usize) -> &mut Self {
         self.offset = offset;
         self
     }
 
-    pub fn jump<'a>(&'a mut self, jump_by: usize) -> &'a mut Self {
+    pub fn jump(&mut self, jump_by: usize) -> &mut Self {
         self.offset += jump_by;
         self
     }
 
-    pub fn push_index<'a>(&'a mut self) -> &'a mut Self {
+    pub fn push_index(&mut self) -> &mut Self {
         self.push_offset = Some(self.offset);
         self
     }
-    pub fn pop_index<'a>(&'a mut self) -> &'a mut Self {
+    pub fn pop_index(&mut self) -> &mut Self {
         if let Some(offset) = self.push_offset {
             self.offset = offset;
             self.push_offset = None;
@@ -96,7 +96,7 @@ impl ByteReader {
     pub fn get_current_offset(&self) -> usize {
         self.offset
     }
-    pub fn read_bytes<'a>(&'a mut self, bytes: usize) -> Result<&'a [u8], ByteReaderError> {
+    pub fn read_bytes(&mut self, bytes: usize) -> Result<&[u8], ByteReaderError> {
         // Was hoping for an easier way by using peak_bytes, but couldn't figure out with out the borrowing problems
         // --- example ---
         // let data = self.peak_bytes()?;
@@ -111,19 +111,18 @@ impl ByteReader {
             });
         }
 
-        let data = self
-            .data
-            .get(self.offset..self.offset + bytes)
-            .ok_or_else(|| ByteReaderError::OutOfBounds {
+        let data = self.data.get(self.offset..self.offset + bytes).ok_or(
+            ByteReaderError::OutOfBounds {
                 length: self.data.len(),
                 start: self.offset,
                 end: self.offset + bytes,
-            })?;
+            },
+        )?;
 
         self.offset += bytes;
-        return Ok(data);
+        Ok(data)
     }
-    pub fn peak_bytes<'a>(&'a self, bytes: usize) -> Result<&'a [u8], ByteReaderError> {
+    pub fn peak_bytes(&self, bytes: usize) -> Result<&[u8], ByteReaderError> {
         if self.offset + bytes > self.data.len() {
             return Err(ByteReaderError::OutOfBounds {
                 length: self.data.len(),
@@ -132,14 +131,13 @@ impl ByteReader {
             });
         }
 
-        let data = self
-            .data
-            .get(self.offset..self.offset + bytes)
-            .ok_or_else(|| ByteReaderError::OutOfBounds {
+        let data = self.data.get(self.offset..self.offset + bytes).ok_or(
+            ByteReaderError::OutOfBounds {
                 length: self.data.len(),
                 start: self.offset,
                 end: self.offset + bytes,
-            })?;
+            },
+        )?;
         Ok(data)
     }
 
@@ -152,17 +150,17 @@ impl ByteReader {
     }
 
     pub fn find_next(&self, sequence: &[u8]) -> Result<usize, ByteReaderError> {
-        self.find_from(sequence, self.offset.clone())
+        self.find_from(sequence, self.offset)
     }
     pub fn find(&self, sequence: &[u8]) -> Result<usize, ByteReaderError> {
         self.find_from(sequence, 0)
     }
 
-    pub fn find_all_offsets(&self, sequence: &Vec<u8>) -> Vec<usize> {
+    pub fn find_all_offsets(&self, sequence: &[u8]) -> Vec<usize> {
         self.find_all_offsets_after(0, sequence)
     }
 
-    pub fn find_all_offsets_after(&self, start_offset: usize, sequence: &Vec<u8>) -> Vec<usize> {
+    pub fn find_all_offsets_after(&self, start_offset: usize, sequence: &[u8]) -> Vec<usize> {
         let mut offset = start_offset;
         let mut found_offsets = vec![];
         while let Ok(found_offset) = self.find_from(sequence, offset) {
@@ -186,9 +184,9 @@ impl ByteReader {
             return Ok(offset);
         }
 
-        return Err(ByteReaderError::NotFound {
+        Err(ByteReaderError::NotFound {
             sequence: sequence.to_vec(),
-        });
+        })
     }
     pub fn read_string_length<T: FromBinaryReader + Into<usize>>(
         &mut self,
@@ -204,8 +202,7 @@ impl ByteReader {
     }
 
     pub fn read_string(&mut self, length: usize) -> Result<String, ByteReaderError> {
-        Ok(String::from_utf8(self.read_bytes(length)?.to_vec())
-            .map_err(|err| ByteReaderError::Utf8Error(err))?)
+        String::from_utf8(self.read_bytes(length)?.to_vec()).map_err(ByteReaderError::Utf8Error)
     }
 
     pub fn read_string_lossy(&mut self, length: usize) -> Result<String, ByteReaderError> {
@@ -228,8 +225,7 @@ pub trait FromBinaryReader {
     {
         let v = Self::peak_from_byte_reader(reader)?;
         reader.offset += std::mem::size_of::<Self>();
-
-        return Ok(v);
+        Ok(v)
     }
 
     fn peak_from_byte_reader(reader: &ByteReader) -> Result<Self, ByteReaderError>
