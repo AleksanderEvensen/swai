@@ -1,7 +1,7 @@
 [workspace]
 members = [
-	"bytereader",
-	"swai-parser"
+	"crates/bytereader",
+	"crates/swai-parser"
 ]
 
 [workspace.dependencies]
@@ -16,4 +16,4 @@ description = "A Simple WebAssembly Interpreter"
 
 [dependencies]
 thiserror = { workspace = true }
-swai-parser = { path = "./swai-parser" }
+swai-parser = { path = "./crates/swai-parser" }
