@@ -1,9 +1,9 @@
 #![allow(non_camel_case_types, unused, non_snake_case)]
-
-/*
 use std::ops::{RangeFrom, RangeInclusive};
 
-use bytereader::FromByteReader;
+use bytereader::{ByteReader, ByteReaderError, FromByteReader};
+
+use crate::leb128::Leb128Readers;
 
 #[derive(Debug)]
 pub enum Indecies {
@@ -21,18 +21,17 @@ pub enum Indecies {
 #[derive(Debug)]
 pub struct Name(String);
 
-impl Name {
-    pub(crate) fn parse(input: &[u8]) -> IResult<&[u8], Name> {
-        let (input, bytes) = vec(u8)(input)?;
+impl FromByteReader for Name {
+    fn read_from_byte_reader(
+        reader: &mut bytereader::ByteReader,
+    ) -> Result<Self, bytereader::ByteReaderError>
+    where
+        Self: Sized,
+    {
+        let str_len = reader.read_uleb128::<u32>()?;
+        let str = reader.read_string(str_len as usize)?;
 
-        let str = match String::from_utf8(bytes) {
-            Ok(v) => v,
-            Err(e) => {
-                panic!("Something went wrong when converting utf8 bytes to string: {e}")
-            }
-        };
-
-        Ok((input, Name(str)))
+        Ok(Self(str))
     }
 }
 
@@ -103,18 +102,14 @@ impl From<u8> for ValueType {
     }
 }
 
-impl ValueType {
-    pub(crate) fn parse(input: &[u8]) -> IResult<&[u8], ValueType> {
-        map(u8, |byte| ValueType::from(byte))(input)
-    }
-}
-
-pub(crate) mod ResultType {
-    use super::{vec, ValueType};
-    use nom::IResult;
-
-    pub(crate) fn parse(input: &[u8]) -> IResult<&[u8], Vec<ValueType>> {
-        vec(ValueType::parse)(input)
+impl FromByteReader for ValueType {
+    fn read_from_byte_reader(
+        reader: &mut bytereader::ByteReader,
+    ) -> Result<Self, bytereader::ByteReaderError>
+    where
+        Self: Sized,
+    {
+        Ok(Self::from(reader.read::<u8>()?))
     }
 }
 
@@ -124,12 +119,19 @@ pub struct FunctionType {
     result: Vec<ValueType>,
 }
 
-impl FunctionType {
-    pub(crate) fn parse(input: &[u8]) -> IResult<&[u8], Self> {
-        map(
-            tuple((tag(&[0x60]), ResultType::parse, ResultType::parse)),
-            |(_, params, result)| FunctionType { params, result },
-        )(input)
+impl FromByteReader for FunctionType {
+    fn read_from_byte_reader(
+        reader: &mut bytereader::ByteReader,
+    ) -> Result<Self, bytereader::ByteReaderError>
+    where
+        Self: Sized,
+    {
+        reader.read_expect(&[0x60])?;
+
+        Ok(Self {
+            params: read_vec(reader)?,
+            result: read_vec(reader)?,
+        })
     }
 }
 
@@ -139,26 +141,27 @@ pub enum Limits {
     minmax(RangeInclusive<u32>),
 }
 
-impl Limits {
-    pub(crate) fn parse(input: &[u8]) -> IResult<&[u8], Self> {
-        let (input, (limit_type, n)) = tuple((u8, leb128_u32))(input)?;
+impl FromByteReader for Limits {
+    fn read_from_byte_reader(
+        reader: &mut bytereader::ByteReader,
+    ) -> Result<Self, bytereader::ByteReaderError>
+    where
+        Self: Sized,
+    {
+        let limit_type = reader.read::<u8>()?;
+        let n = reader.read_uleb128::<u32>()?;
 
         match limit_type {
-            0x00 => Ok((input, Limits::min(n..))),
+            0x00 => Ok(Self::min(n..)),
             0x01 => {
-                let (input, m) = leb128_u32(input)?;
-                Ok((input, Limits::minmax(n..=m)))
+                let m = reader.read_uleb128::<u32>()?;
+                Ok((Self::minmax(n..=m)))
             }
-            _ => unreachable!("Check the wasm spec for more info: https://webassembly.github.io/spec/core/binary/types.html#limits")
+
+            v => Err(bytereader::ByteReaderError::UnknownError(format!(
+                "Failed to parse Limits: limit_type must be either '0x00' or '0x01' got '0x{v:X?}'"
+            ))),
         }
-    }
-}
-
-pub(crate) mod MemoryType {
-    use super::Limits;
-
-    pub(crate) fn parse(input: &[u8]) -> IResult<&[u8], Limits> {
-        Limits::parse(input)
     }
 }
 
@@ -168,12 +171,17 @@ pub struct TableType {
     lim: Limits,
 }
 
-impl TableType {
-    pub(crate) fn parse(input: &[u8]) -> IResult<&[u8], TableType> {
-        map(tuple((u8, Limits::parse)), |(reftype_val, lim)| TableType {
-            elem: ReferenceTypes::from(reftype_val),
-            lim,
-        })(input)
+impl FromByteReader for TableType {
+    fn read_from_byte_reader(
+        reader: &mut bytereader::ByteReader,
+    ) -> Result<Self, bytereader::ByteReaderError>
+    where
+        Self: Sized,
+    {
+        Ok(TableType {
+            elem: ReferenceTypes::from(reader.read::<u8>()?),
+            lim: reader.read()?,
+        })
     }
 }
 
@@ -183,14 +191,17 @@ pub struct GlobalType {
     mutability: Mutability,
 }
 
-impl GlobalType {
-    pub(crate) fn parse(input: &[u8]) -> IResult<&[u8], Self> {
-        map(tuple((ValueType::parse, u8)), |(vtype, mutability)| {
-            GlobalType {
-                vtype,
-                mutability: Mutability::from(mutability),
-            }
-        })(input)
+impl FromByteReader for GlobalType {
+    fn read_from_byte_reader(
+        reader: &mut bytereader::ByteReader,
+    ) -> Result<Self, bytereader::ByteReaderError>
+    where
+        Self: Sized,
+    {
+        Ok(GlobalType {
+            vtype: reader.read()?,
+            mutability: Mutability::from(reader.read::<u8>()?),
+        })
     }
 }
 
@@ -210,4 +221,11 @@ impl From<u8> for Mutability {
     }
 }
 
-*/
+pub fn read_vec<T>(reader: &mut ByteReader) -> Result<Vec<T>, ByteReaderError>
+where
+    T: FromByteReader,
+{
+    (0..reader.read_uleb128::<u32>()?)
+        .map(|_| T::read_from_byte_reader(reader))
+        .collect()
+}

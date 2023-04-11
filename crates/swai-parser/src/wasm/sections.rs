@@ -1,12 +1,18 @@
-// #![allow(non_snake_case)]
-// use super::types::{FunctionType, Indecies, Name, ValueType};
+use bytereader::ByteReader;
+
+use super::types::FunctionType;
+use crate::{
+    error::WasmParserError,
+    leb128::Leb128Readers,
+    wasm::types::{read_vec, Indecies},
+};
 
 #[derive(Debug)]
 pub struct WasmSections {
     pub custom: Vec<()>,
-    pub types: Vec<()>,
+    pub types: Vec<FunctionType>,
     pub imports: Vec<()>,
-    pub functions: Vec<()>,
+    pub functions: Vec<Indecies>,
     pub tables: Vec<()>,
     pub memory: Vec<()>,
     pub global: Vec<()>,
@@ -16,6 +22,60 @@ pub struct WasmSections {
     pub code: Vec<()>,
     pub data: Vec<()>,
     pub data_count: Option<u32>,
+}
+
+impl WasmSections {
+    pub fn from_reader(reader: &mut ByteReader) -> Result<Self, WasmParserError> {
+        let mut sections = WasmSections {
+            custom: vec![],
+            types: vec![],
+            imports: vec![],
+            functions: vec![],
+            tables: vec![],
+            memory: vec![],
+            global: vec![],
+            export: vec![],
+            start: None,
+            element: vec![],
+            code: vec![],
+            data: vec![],
+            data_count: None,
+        };
+
+        while let Ok(section_id) = reader.read::<u8>() {
+            let _section_size = reader.read_uleb128::<u32>()?;
+
+            println!("Id: {section_id}  |  Size: {_section_size}");
+            match section_id {
+                0 => {
+                    reader.jump(_section_size as usize);
+                    println!("TODO: implement custom section");
+                }
+                1 => sections.types = read_vec(reader)?,
+                2 => todo!("import section"),
+                3 => {
+                    sections.functions = (0..reader.read_uleb128::<u32>()?)
+                        .map(|_| reader.read_uleb128::<u32>().map(Indecies::TypeIdx))
+                        .collect::<Result<_, _>>()?;
+                }
+                4 => todo!("table section"),
+                5 => todo!("memory section"),
+                6 => todo!("global section"),
+                7 => {
+                    todo!("export section")
+                }
+                8 => todo!("start section"),
+                9 => todo!("element section"),
+                10 => todo!("code section"),
+                11 => todo!("data section"),
+                12 => todo!("data_count section"),
+
+                id => return Err(WasmParserError::InvalidSectionId { id }),
+            }
+        }
+
+        Ok(sections)
+    }
 }
 
 /*
@@ -87,15 +147,6 @@ impl Section {
             12 => todo!("DataCount Section"),
             _ => unreachable!("Check the wasm spec for more info: https://webassembly.github.io/spec/core/binary/modules.html#sections")
         }))
-    }
-}
-
-mod TypeSection {
-    use crate::wasm::types::{vec, FunctionType};
-    use nom::IResult;
-
-    pub(crate) fn parse(input: &[u8]) -> IResult<&[u8], Vec<FunctionType>> {
-        vec(FunctionType::parse)(input)
     }
 }
 

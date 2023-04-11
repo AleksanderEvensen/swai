@@ -1,6 +1,5 @@
-use std::ops::{BitOrAssign, Shl};
-
 use bytereader::{ByteReader, ByteReaderError};
+use std::ops::{BitOrAssign, Shl};
 
 pub trait Leb128Readers {
     fn read_uleb128<T>(&mut self) -> Result<T, ByteReaderError>

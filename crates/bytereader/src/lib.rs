@@ -40,7 +40,10 @@ pub struct ByteReader {
     /// Endian to use when reading for reading numbers
     endian: Endian,
     /// If the push_index function has been ran, the Option contains a value at that position, and can be returned to this position later using the pop_index function
-    push_offset: Option<usize>,
+    push_offsets: Vec<usize>,
+
+    /// If needed enable this for verbose printing
+    debug: bool,
 }
 
 impl ByteReader {
@@ -49,7 +52,8 @@ impl ByteReader {
             data: vec.to_vec(),
             offset: 0,
             endian: Endian::Little,
-            push_offset: None,
+            push_offsets: vec![],
+            debug: false,
         }
     }
 
@@ -60,12 +64,17 @@ impl ByteReader {
             data,
             offset: 0,
             endian: Endian::Little,
-            push_offset: None,
+            push_offsets: vec![],
+            debug: false,
         })
     }
 }
 
 impl ByteReader {
+    pub fn set_debug(&mut self, debug: bool) -> &mut Self {
+        self.debug = debug;
+        self
+    }
     pub fn set_endian(&mut self, endian: Endian) -> &mut Self {
         self.endian = endian;
         self
@@ -81,13 +90,12 @@ impl ByteReader {
     }
 
     pub fn push_index(&mut self) -> &mut Self {
-        self.push_offset = Some(self.offset);
+        self.push_offsets.push(self.offset);
         self
     }
     pub fn pop_index(&mut self) -> &mut Self {
-        if let Some(offset) = self.push_offset {
+        if let Some(offset) = self.push_offsets.pop() {
             self.offset = offset;
-            self.push_offset = None;
         }
         self
     }
@@ -135,6 +143,11 @@ impl ByteReader {
         )?;
 
         self.offset += bytes;
+
+        if self.debug {
+            println!("Read bytes: '{data:?}'  |  Offset: {}", self.offset);
+        }
+
         Ok(data)
     }
     pub fn peak_bytes(&self, bytes: usize) -> Result<&[u8], ByteReaderError> {
@@ -225,7 +238,8 @@ impl ByteReader {
     }
 
     pub fn read<T: FromByteReader>(&mut self) -> Result<T, ByteReaderError> {
-        T::read_from_byte_reader(self)
+        let v = T::read_from_byte_reader(self)?;
+        Ok(v)
     }
 
     pub fn peak<T: FromByteReader>(&mut self) -> Result<T, ByteReaderError> {
@@ -236,25 +250,28 @@ impl ByteReader {
 pub trait FromByteReader {
     fn read_from_byte_reader(reader: &mut ByteReader) -> Result<Self, ByteReaderError>
     where
+        Self: Sized;
+
+    fn peak_from_byte_reader(reader: &mut ByteReader) -> Result<Self, ByteReaderError>
+    where
         Self: Sized,
     {
-        let v = Self::peak_from_byte_reader(reader)?;
-        reader.offset += std::mem::size_of::<Self>();
+        reader.push_index();
+        let v = Self::read_from_byte_reader(reader)?;
+        reader.pop_index();
         Ok(v)
     }
-
-    fn peak_from_byte_reader(reader: &ByteReader) -> Result<Self, ByteReaderError>
-    where
-        Self: Sized;
 }
 
 macro_rules! impl_from_byte_reader {
     ($ty:ident) => {
         impl FromByteReader for $ty {
-            fn peak_from_byte_reader(reader: &crate::ByteReader) -> Result<$ty, ByteReaderError> {
+            fn read_from_byte_reader(
+                reader: &mut crate::ByteReader,
+            ) -> Result<$ty, ByteReaderError> {
                 let bytes = std::mem::size_of::<Self>();
                 let data: [u8; std::mem::size_of::<Self>()] = reader
-                    .peak_bytes(bytes)?
+                    .read_bytes(bytes)?
                     .try_into()
                     .map_err(|_| ByteReaderError::FailedTypeCast {
                         from: format!("&[{}]", stringify!($ty)),
