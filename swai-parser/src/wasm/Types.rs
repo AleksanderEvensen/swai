@@ -1,16 +1,9 @@
 #![allow(non_camel_case_types, unused, non_snake_case)]
 
+/*
 use std::ops::{RangeFrom, RangeInclusive};
 
-use nom::{
-    bytes::complete::tag,
-    combinator::map,
-    error::{ContextError, ParseError},
-    number::complete::u8,
-    sequence::tuple,
-    IResult, InputIter, InputLength, Parser, Slice,
-};
-use nom_leb128::leb128_u32;
+use bytereader::FromByteReader;
 
 #[derive(Debug)]
 pub enum Indecies {
@@ -71,7 +64,7 @@ impl From<u8> for VectorTypes {
     fn from(value: u8) -> Self {
         match value {
             0x7B => VectorTypes::v128,
-			_ => unreachable!("Check the wasm spec for more info: https://webassembly.github.io/spec/core/binary/types.html#vector-types")
+            _ => unreachable!("Check the wasm spec for more info: https://webassembly.github.io/spec/core/binary/types.html#vector-types")
         }
     }
 }
@@ -85,10 +78,10 @@ pub enum ReferenceTypes {
 impl From<u8> for ReferenceTypes {
     fn from(value: u8) -> Self {
         match value {
-			0x70 => ReferenceTypes::funcref,
-			0x6F => ReferenceTypes::externref,
-			_ => unreachable!("Check the wasm spec for more info: https://webassembly.github.io/spec/core/binary/types.html#reference-types")
-		}
+            0x70 => ReferenceTypes::funcref,
+            0x6F => ReferenceTypes::externref,
+            _ => unreachable!("Check the wasm spec for more info: https://webassembly.github.io/spec/core/binary/types.html#reference-types")
+        }
     }
 }
 
@@ -105,7 +98,7 @@ impl From<u8> for ValueType {
             0x7C..=0x7F => ValueType::NumType(NumberTypes::from(value)),
             0x7B => ValueType::VecType(VectorTypes::from(value)),
             0x6F..=0x70 => ValueType::RefType(ReferenceTypes::from(value)),
-			_ => unreachable!("Check the wasm spec for more info: https://webassembly.github.io/spec/core/binary/types.html#value-types")
+            _ => unreachable!("Check the wasm spec for more info: https://webassembly.github.io/spec/core/binary/types.html#value-types")
         }
     }
 }
@@ -156,14 +149,13 @@ impl Limits {
                 let (input, m) = leb128_u32(input)?;
                 Ok((input, Limits::minmax(n..=m)))
             }
-			_ => unreachable!("Check the wasm spec for more info: https://webassembly.github.io/spec/core/binary/types.html#limits")
+            _ => unreachable!("Check the wasm spec for more info: https://webassembly.github.io/spec/core/binary/types.html#limits")
         }
     }
 }
 
 pub(crate) mod MemoryType {
     use super::Limits;
-    use nom::IResult;
 
     pub(crate) fn parse(input: &[u8]) -> IResult<&[u8], Limits> {
         Limits::parse(input)
@@ -213,27 +205,9 @@ impl From<u8> for Mutability {
         match value {
             0x00 => Mutability::Const,
             0x01 => Mutability::Var,
-			_ => unreachable!("Check the wasm spec for more info: https://webassembly.github.io/spec/core/binary/types.html#global-types")
+            _ => unreachable!("Check the wasm spec for more info: https://webassembly.github.io/spec/core/binary/types.html#global-types")
         }
     }
 }
 
-pub(crate) fn vec<I, O, E, F>(mut parser: F) -> impl FnMut(I) -> IResult<I, Vec<O>, E>
-where
-    F: Parser<I, O, E>,
-    I: Clone + Slice<RangeFrom<usize>> + InputIter<Item = u8> + InputLength,
-    E: ParseError<I> + ContextError<I>,
-{
-    move |input: I| {
-        let (mut input, n) = leb128_u32(input)?;
-        let mut vec: Vec<O> = vec![];
-
-        for _ in 0..n {
-            let (inp, val) = parser.parse(input)?;
-            input = inp;
-            vec.push(val);
-        }
-
-        Ok((input, vec))
-    }
-}
+*/
