@@ -20,6 +20,9 @@ pub enum ByteReaderError {
 
     #[error("Failed to parse Utf8String from bytes")]
     Utf8Error(#[from] FromUtf8Error),
+
+    #[error("An unknown error occurred: '{0}'")]
+    UnknownError(String),
 }
 
 #[derive(Clone, Copy)]
@@ -96,6 +99,18 @@ impl ByteReader {
     pub fn get_current_offset(&self) -> usize {
         self.offset
     }
+
+    pub fn read_expect(&mut self, cmp_buffer: &[u8]) -> Result<bool, ByteReaderError> {
+        let bytes = self.read_bytes(cmp_buffer.len())?;
+
+        for (a, b) in cmp_buffer.iter().zip(bytes.iter()) {
+            if a != b {
+                return Ok(false);
+            }
+        }
+        return Ok(true);
+    }
+
     pub fn read_bytes(&mut self, bytes: usize) -> Result<&[u8], ByteReaderError> {
         // Was hoping for an easier way by using peak_bytes, but couldn't figure out with out the borrowing problems
         // --- example ---
@@ -188,13 +203,13 @@ impl ByteReader {
             sequence: sequence.to_vec(),
         })
     }
-    pub fn read_string_length<T: FromBinaryReader + Into<usize>>(
+    pub fn read_string_length<T: FromByteReader + Into<usize>>(
         &mut self,
     ) -> Result<String, ByteReaderError> {
         let length = self.read::<T>()?;
         self.read_string(length.into())
     }
-    pub fn read_string_lossy_length<T: FromBinaryReader + Into<usize>>(
+    pub fn read_string_lossy_length<T: FromByteReader + Into<usize>>(
         &mut self,
     ) -> Result<String, ByteReaderError> {
         let length = self.read::<T>()?;
@@ -209,16 +224,16 @@ impl ByteReader {
         Ok(String::from_utf8_lossy(self.read_bytes(length)?).to_string())
     }
 
-    pub fn read<T: FromBinaryReader>(&mut self) -> Result<T, ByteReaderError> {
+    pub fn read<T: FromByteReader>(&mut self) -> Result<T, ByteReaderError> {
         T::read_from_byte_reader(self)
     }
 
-    pub fn peak<T: FromBinaryReader>(&mut self) -> Result<T, ByteReaderError> {
+    pub fn peak<T: FromByteReader>(&mut self) -> Result<T, ByteReaderError> {
         T::peak_from_byte_reader(self)
     }
 }
 
-pub trait FromBinaryReader {
+pub trait FromByteReader {
     fn read_from_byte_reader(reader: &mut ByteReader) -> Result<Self, ByteReaderError>
     where
         Self: Sized,
@@ -233,9 +248,9 @@ pub trait FromBinaryReader {
         Self: Sized;
 }
 
-macro_rules! impl_from_binary_reader {
+macro_rules! impl_from_byte_reader {
     ($ty:ident) => {
-        impl FromBinaryReader for $ty {
+        impl FromByteReader for $ty {
             fn peak_from_byte_reader(reader: &crate::ByteReader) -> Result<$ty, ByteReaderError> {
                 let bytes = std::mem::size_of::<Self>();
                 let data: [u8; std::mem::size_of::<Self>()] = reader
@@ -254,13 +269,13 @@ macro_rules! impl_from_binary_reader {
     };
 }
 
-impl_from_binary_reader!(u8);
-impl_from_binary_reader!(i8);
-impl_from_binary_reader!(u16);
-impl_from_binary_reader!(i16);
-impl_from_binary_reader!(u32);
-impl_from_binary_reader!(i32);
-impl_from_binary_reader!(u64);
-impl_from_binary_reader!(i64);
-impl_from_binary_reader!(f32);
-impl_from_binary_reader!(f64);
+impl_from_byte_reader!(u8);
+impl_from_byte_reader!(i8);
+impl_from_byte_reader!(u16);
+impl_from_byte_reader!(i16);
+impl_from_byte_reader!(u32);
+impl_from_byte_reader!(i32);
+impl_from_byte_reader!(u64);
+impl_from_byte_reader!(i64);
+impl_from_byte_reader!(f32);
+impl_from_byte_reader!(f64);
