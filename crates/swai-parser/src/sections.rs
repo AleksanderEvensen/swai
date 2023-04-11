@@ -4,7 +4,7 @@ use super::types::FunctionType;
 use crate::{
     error::WasmParserError,
     leb128::Leb128Readers,
-    wasm::types::{read_vec, Indecies},
+    types::{read_vec, Indecies},
 };
 
 #[derive(Debug)]

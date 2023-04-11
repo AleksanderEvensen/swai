@@ -1,11 +1,8 @@
-pub mod sections;
-pub mod types;
-
 use crate::error::WasmParserError;
 use bytereader::ByteReader;
 use std::{fs::File, io::Read};
 
-use self::sections::WasmSections;
+use crate::sections::WasmSections;
 
 // pub use sections::WasmSections;
 
