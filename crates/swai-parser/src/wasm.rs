@@ -16,7 +16,7 @@ pub struct WasmModule {
 impl WasmModule {
     pub fn from_file(file: &mut File) -> Result<WasmModule, WasmParserError> {
         let mut buffer = vec![];
-        file.read_to_end(&mut buffer);
+        file.read_to_end(&mut buffer)?;
         WasmModule::from_bytes(&buffer)
     }
     pub fn from_bytes(bytes: &[u8]) -> Result<WasmModule, WasmParserError> {

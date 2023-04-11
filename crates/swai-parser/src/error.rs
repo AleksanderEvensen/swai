@@ -15,6 +15,10 @@ pub enum WasmParserError {
     #[error("Invalid wasm bytes: '{message}'")]
     InvalidWasmBytes { message: &'static str },
 
-    #[error("Failed to parse wasm bytes. Reader error: {0}")]
+    // From other error types
+    #[error("Failed to parse wasm bytes. Reader error: {0:#?}")]
     ParserError(#[from] ByteReaderError),
+
+    #[error("I/O error: {0:#?}")]
+    IOError(#[from] std::io::Error),
 }
