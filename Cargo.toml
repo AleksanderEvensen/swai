@@ -4,6 +4,9 @@ members = [
 	"swai-parser"
 ]
 
+[workspace.dependencies]
+thiserror = "1.0.40"
+
 
 [package]
 name = "swai"
@@ -12,6 +15,5 @@ edition = "2021"
 description = "A Simple WebAssembly Interpreter"
 
 [dependencies]
-nom = "7.1.3"
-nom-leb128 = "0.2.0"
+thiserror = { workspace = true }
 swai-parser = { path = "./swai-parser" }
