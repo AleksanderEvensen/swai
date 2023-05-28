@@ -4,7 +4,7 @@ use super::types::FunctionType;
 use crate::{
     error::WasmParserError,
     leb128::Leb128Readers,
-    types::{read_vec, Indecies},
+    types::{read_vec, Indecies, Name},
 };
 
 #[derive(Debug)]
@@ -16,7 +16,7 @@ pub struct WasmSections {
     pub tables: Vec<()>,
     pub memory: Vec<()>,
     pub global: Vec<()>,
-    pub export: Vec<()>,
+    pub export: Vec<(Name, Indecies)>,
     pub start: Option<()>,
     pub element: Vec<()>,
     pub code: Vec<()>,
@@ -62,7 +62,28 @@ impl WasmSections {
                 5 => todo!("memory section"),
                 6 => todo!("global section"),
                 7 => {
-                    todo!("export section")
+                    sections.export = (0..reader.read_uleb128::<u32>()?)
+                        .map(|_| {
+                            Ok((
+                                reader.read()?,
+                                match reader.read::<u8>()? {
+                                    0x00 => reader.read_uleb128::<u32>().map(Indecies::FuncIdx)?,
+                                    0x01 => reader.read_uleb128::<u32>().map(Indecies::TableIdx)?,
+                                    0x02 => reader.read_uleb128::<u32>().map(Indecies::MemIdx)?,
+                                    0x03 => {
+                                        reader.read_uleb128::<u32>().map(Indecies::GlobalIdx)?
+                                    }
+                                    id => {
+                                        return Err(WasmParserError::InvalidSectionError {
+                                            message: format!(
+                                                "Export section had an invalid (Name, Index) pair. The provided index ({}) isn't valid", id
+											),
+                                        })
+                                    }
+                                },
+                            ))
+                        })
+                        .collect::<Result<_, _>>()?
                 }
                 8 => todo!("start section"),
                 9 => todo!("element section"),

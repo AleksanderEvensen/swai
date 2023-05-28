@@ -7,13 +7,13 @@ pub enum WasmParserError {
     StringFromBytes { bytes: Vec<u8> },
 
     #[error("A section wasn't structured or parsed the correct way: '{message}'")]
-    InvalidSectionError { message: &'static str },
+    InvalidSectionError { message: String },
 
     #[error("Unknown section id: {id}")]
     InvalidSectionId { id: u8 },
 
     #[error("Invalid wasm bytes: '{message}'")]
-    InvalidWasmBytes { message: &'static str },
+    InvalidWasmBytes { message: String },
 
     // From other error types
     #[error("Failed to parse wasm bytes. Reader error: {0:#?}")]
