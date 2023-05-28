@@ -1,4 +1,5 @@
 pub mod error;
+pub mod instructions;
 mod leb128;
 pub mod sections;
 pub mod types;

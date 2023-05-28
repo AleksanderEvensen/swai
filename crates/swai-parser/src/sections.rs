@@ -4,7 +4,7 @@ use super::types::FunctionType;
 use crate::{
     error::WasmParserError,
     leb128::Leb128Readers,
-    types::{read_vec, Indecies, Name},
+    types::{read_vec, Indecies, Name, ValueType},
 };
 
 #[derive(Debug)]
@@ -87,7 +87,35 @@ impl WasmSections {
                 }
                 8 => todo!("start section"),
                 9 => todo!("element section"),
-                10 => todo!("code section"),
+                10 => {
+					
+					(0..reader.read_uleb128::<u32>()?).for_each(|_| {
+						let code_sec_bytes = reader.read_uleb128::<u32>().unwrap();
+						println!("Found code section with byte length: {}", code_sec_bytes);
+
+						let bytes_end = reader.get_current_offset() + code_sec_bytes as usize;
+
+						let code_bytes = reader.peak_bytes(code_sec_bytes as usize).unwrap().to_vec();
+						
+						let locals = (0..reader.read_uleb128::<u32>().unwrap()).map(|_| Ok((reader.read()?, reader.read()?))).collect::<Result<Vec<(u32, ValueType)>, WasmParserError>>();
+						let code_bytes = reader.peak_bytes(bytes_end - reader.get_current_offset()).unwrap().to_vec();
+						// let expr = 
+						println!("Locals:\n{:#?}", locals);
+
+						println!("Bytes (decimal):{:?}", code_bytes);
+						print!("Bytes: ");
+						for byte in code_bytes {
+							print!("{:X?} ", byte);
+						}
+						println!("");
+
+						panic!("Don't continue from here");
+					});
+
+
+
+					todo!("code section")
+				},
                 11 => todo!("data section"),
                 12 => todo!("data_count section"),
 
