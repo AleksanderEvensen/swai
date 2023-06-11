@@ -1,9 +1,9 @@
 #![allow(non_camel_case_types, unused, non_snake_case)]
+use crate::leb128::Leb128Readers;
+use bytereader::{ByteReader, ByteReaderError, FromByteReader};
 use std::ops::{RangeFrom, RangeInclusive};
 
-use bytereader::{ByteReader, ByteReaderError, FromByteReader};
-
-use crate::leb128::Leb128Readers;
+pub type MemType = Limits;
 
 #[derive(Debug)]
 pub enum Indecies {
@@ -228,4 +228,28 @@ where
     (0..reader.read_uleb128::<u32>()?)
         .map(|_| T::read_from_byte_reader(reader))
         .collect()
+}
+
+#[derive(Debug)]
+pub enum ImportDesc {
+    TypeIdx(Indecies),
+    TableType(TableType),
+    MemType(MemType),
+    GlobalType(GlobalType),
+}
+
+impl FromByteReader for ImportDesc {
+    fn read_from_byte_reader(reader: &mut ByteReader) -> Result<Self, ByteReaderError>
+    where
+        Self: Sized,
+    {
+        Ok(match reader.read::<u8>()? {
+            0x00 => ImportDesc::TypeIdx(reader.read_uleb128::<u32>().map(Indecies::TypeIdx)?),
+            0x01 => ImportDesc::TableType(reader.read()?),
+            0x02 => ImportDesc::MemType(reader.read()?),
+            0x03 => ImportDesc::GlobalType(reader.read()?),
+			_ => unreachable!("Check the wasm spec for more info: https://webassembly.github.io/spec/core/binary/modules.html#binary-importsec")
+
+        })
+    }
 }

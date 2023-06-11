@@ -4,22 +4,22 @@ use super::types::FunctionType;
 use crate::{
     error::WasmParserError,
     leb128::Leb128Readers,
-    types::{read_vec, Indecies, Name, ValueType},
+    types::{read_vec, Indecies, Name, ValueType, ImportDesc, TableType, MemType}, instructions::Instructions,
 };
 
 #[derive(Debug)]
 pub struct WasmSections {
     pub custom: Vec<()>,
     pub types: Vec<FunctionType>,
-    pub imports: Vec<()>,
+    pub imports: Vec<(Name, Name, ImportDesc)>,
     pub functions: Vec<Indecies>,
-    pub tables: Vec<()>,
-    pub memory: Vec<()>,
+    pub tables: Vec<TableType>,
+    pub memory: Vec<MemType>,
     pub global: Vec<()>,
     pub export: Vec<(Name, Indecies)>,
     pub start: Option<()>,
     pub element: Vec<()>,
-    pub code: Vec<()>,
+    pub code: Vec<(Vec<(u32, ValueType)>, Vec<Instructions>)>,
     pub data: Vec<()>,
     pub data_count: Option<u32>,
 }
@@ -52,14 +52,14 @@ impl WasmSections {
                     println!("TODO: implement custom section");
                 }
                 1 => sections.types = read_vec(reader)?,
-                2 => todo!("import section"),
+                2 => sections.imports = (0..reader.read_uleb128::<u32>()?).map(|_| Ok((reader.read::<Name>()?, reader.read::<Name>()?, reader.read::<ImportDesc>()?))).collect::<Result<_,WasmParserError>>()?,
                 3 => {
                     sections.functions = (0..reader.read_uleb128::<u32>()?)
                         .map(|_| reader.read_uleb128::<u32>().map(Indecies::TypeIdx))
                         .collect::<Result<_, _>>()?;
                 }
-                4 => todo!("table section"),
-                5 => todo!("memory section"),
+                4 => sections.tables = read_vec(reader)?,
+                5 => sections.memory = read_vec(reader)?,
                 6 => todo!("global section"),
                 7 => {
                     sections.export = (0..reader.read_uleb128::<u32>()?)
@@ -89,32 +89,26 @@ impl WasmSections {
                 9 => todo!("element section"),
                 10 => {
 					
-					(0..reader.read_uleb128::<u32>()?).for_each(|_| {
-						let code_sec_bytes = reader.read_uleb128::<u32>().unwrap();
-						println!("Found code section with byte length: {}", code_sec_bytes);
-
+					sections.code = (0..reader.read_uleb128::<u32>()?).map(|_| {
+						let code_sec_bytes = reader.read_uleb128::<u32>()?;
 						let bytes_end = reader.get_current_offset() + code_sec_bytes as usize;
-
-						let code_bytes = reader.peak_bytes(code_sec_bytes as usize).unwrap().to_vec();
+						let locals = (0..reader.read_uleb128::<u32>()?).map(|_| Ok((reader.read()?, reader.read()?))).collect::<Result<Vec<(u32, ValueType)>, WasmParserError>>()?;
+						let code_bytes = reader.read_bytes(bytes_end - reader.get_current_offset())?.to_vec();
 						
-						let locals = (0..reader.read_uleb128::<u32>().unwrap()).map(|_| Ok((reader.read()?, reader.read()?))).collect::<Result<Vec<(u32, ValueType)>, WasmParserError>>();
-						let code_bytes = reader.peak_bytes(bytes_end - reader.get_current_offset()).unwrap().to_vec();
-						// let expr = 
-						println!("Locals:\n{:#?}", locals);
+						let mut code_reader = ByteReader::from_vec(&code_bytes);
+						let mut opcodes = vec![];
 
-						println!("Bytes (decimal):{:?}", code_bytes);
-						print!("Bytes: ");
-						for byte in code_bytes {
-							print!("{:X?} ", byte);
+						while let Some(byte) = code_reader.peak::<u8>().ok() {
+							if byte == 0x0B { break } // End of expression
+							opcodes.push(code_reader.read::<Instructions>()?);
 						}
-						println!("");
 
-						panic!("Don't continue from here");
-					});
+						println!("Opcodes:\n{:#?}", opcodes);
 
 
+						Ok((locals, opcodes))
+					}).collect::<Result<_,WasmParserError>>()?;
 
-					todo!("code section")
 				},
                 11 => todo!("data section"),
                 12 => todo!("data_count section"),
@@ -126,130 +120,3 @@ impl WasmSections {
         Ok(sections)
     }
 }
-
-/*
-#[derive(Debug)]
-pub enum Section {
-    CodeSection,
-    CustomSection,
-    DataSection,
-    ElementSection,
-    ExportSection(Vec<(Name, Indecies)>),
-    FunctionSection(Vec<Indecies>),
-    GlobalSection,
-    ImportSection,
-    MemorySection(Vec<Vec<ValueType>>),
-    StartSection,
-    TableSection,
-    TypeSection(Vec<FunctionType>),
-}
-
-impl Section {
-    pub(crate) fn parse(input: &[u8]) -> IResult<&[u8], Option<Section>> {
-        // let (input, (section_id, section_size)) = tuple((u8, leb128_u32))(input)?;
-        // let (input, section_bytes) = take(section_size)(input)?;
-
-        println!("SectionId: {section_id}  |  SectionSize: {section_size}");
-        Ok((input, match section_id {
-            0 => None, // Custom Section not implemented yet because it isn't neccessary
-            1 => {
-                if let Ok((_, section)) = TypeSection::parse(section_bytes) {
-                    Some(Section::TypeSection(section))
-                } else {
-                    None
-                }
-            },
-            2 => todo!("Import Section"),
-            3 => {
-                if let Ok((_, section)) = FunctionSection::parse(section_bytes) {
-                    Some(Section::FunctionSection(section))
-                } else {
-                    None
-                }
-            },
-            4 => todo!("Table Section"),
-            5 => {
-                if let Ok((_, section)) = MemorySection::parse(section_bytes) {
-                    Some(Section::MemorySection(section))
-                } else {
-                    None
-                }
-            },
-            6 => todo!("Global Section"),
-            7 => {
-                if let Ok((_, section)) = ExportSection::parse(section_bytes) {
-                    Some(Section::ExportSection(section))
-                } else {
-                    None
-                }
-            },
-            8 => todo!("Start Section"),
-            9 => todo!("Element Section"),
-            10 => {
-                if let Ok((_, _)) = CodeSection::parse(section_bytes) {
-                    Some(Section::CodeSection)
-                } else {
-                    None
-                }
-            },
-            11 => todo!("Data Section"),
-            12 => todo!("DataCount Section"),
-            _ => unreachable!("Check the wasm spec for more info: https://webassembly.github.io/spec/core/binary/modules.html#sections")
-        }))
-    }
-}
-
-mod FunctionSection {
-    use crate::wasm::types::{vec, Indecies};
-    use nom::{combinator::map, IResult};
-    use nom_leb128::leb128_u32;
-
-    pub(crate) fn parse(input: &[u8]) -> IResult<&[u8], Vec<Indecies>> {
-        println!("{:?}", input);
-        vec(map(leb128_u32, |idx| Indecies::TypeIdx(idx)))(input)
-    }
-}
-
-mod ExportSection {
-    use crate::wasm::types::{vec, Indecies, Name};
-    use nom::{combinator::map, number::complete::u8, sequence::tuple, IResult};
-    use nom_leb128::leb128_u32;
-
-    pub(crate) fn parse(input: &[u8]) -> IResult<&[u8], Vec<(Name, Indecies)>> {
-        vec(tuple((
-            Name::parse,
-            map(tuple((u8, leb128_u32)), |(id_type, idx)| {
-                match id_type {
-                    0x00 => Indecies::FuncIdx(idx),
-                    0x01 => Indecies::TableIdx(idx),
-                    0x02 => Indecies::MemIdx(idx),
-                    0x03 => Indecies::GlobalIdx(idx),
-                    _ => unreachable!("Failed to parse Indecie for Export section check wasm spec for more info: https://webassembly.github.io/spec/core/binary/modules.html#export-section")
-                }
-            }),
-        )))(input)
-    }
-}
-
-mod CodeSection {
-    pub(crate) fn parse(input: &[u8]) -> IResult<&[u8], ()> {
-        let (mut input, vec_len) = leb128_u32(input)?;
-
-        for _ in 0..vec_len {
-            let (inp, size) = leb128_u32(input)?;
-            let (inp, _) = take(size)(inp)?;
-            input = inp;
-        }
-        Ok((input, ()))
-    }
-}
-
-mod MemorySection {
-    use crate::wasm::types::{vec, ResultType, ValueType};
-
-    pub(crate) fn parse(input: &[u8]) -> IResult<&[u8], Vec<Vec<ValueType>>> {
-        vec(ResultType::parse)(input)
-    }
-}
-
-' */

@@ -1,8 +1,9 @@
 use bytereader::FromByteReader;
 
-use crate::error::WasmParserError;
+use crate::{leb128::Leb128Readers, types::Indecies};
 
 #[allow(non_camel_case_types)]
+#[derive(Debug)]
 pub enum Instructions {
     // Control Instructions
     BlockType,    // 0x40
@@ -30,11 +31,11 @@ pub enum Instructions {
     SelectMultiple, // 0x1C  - TODO: Double check this one
 
     // Variable Instructions
-    LocalGet,  // 0x20
-    LocalSet,  // 0x21
-    LocalTee,  // 0x22
-    GlobalGet, // 0x23
-    GlobalSet, // 0x24
+    LocalGet(Indecies), // 0x20
+    LocalSet,           // 0x21
+    LocalTee,           // 0x22
+    GlobalGet,          // 0x23
+    GlobalSet,          // 0x24
 
     // Table Instructions
     TableGet,  // 0x25
@@ -238,13 +239,15 @@ impl FromByteReader for Instructions {
     where
         Self: Sized,
     {
-        match reader.read::<u8>()? {
+        Ok(match reader.read::<u8>()? {
+            0x20 => Instructions::LocalGet(reader.read_uleb128::<u32>().map(Indecies::LocalIdx)?),
+            0x6A => Instructions::i32_add,
             opcode_id => {
                 return Err(bytereader::ByteReaderError::UnknownError(format!(
-                    "Invalid instruction opcode id: '{}'",
+                    "Invalid instruction opcode id: '0x{:X?}'",
                     opcode_id
                 )))
             }
-        }
+        })
     }
 }
