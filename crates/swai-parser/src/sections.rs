@@ -4,7 +4,7 @@ use super::types::FunctionType;
 use crate::{
     error::WasmParserError,
     leb128::Leb128Readers,
-    types::{read_vec, Indecies, Name, ValueType, ImportDesc, TableType, MemType}, instructions::Instructions,
+    types::{read_vec, Indecies, Name, ValueType, ImportDesc, TableType, MemType, DataSegment, GlobalType, Expr}, instructions::{Instructions, read_expr},
 };
 
 #[derive(Debug)]
@@ -15,12 +15,12 @@ pub struct WasmSections {
     pub functions: Vec<Indecies>,
     pub tables: Vec<TableType>,
     pub memory: Vec<MemType>,
-    pub global: Vec<()>,
+    pub global: Vec<(GlobalType, Expr)>,
     pub export: Vec<(Name, Indecies)>,
-    pub start: Option<()>,
+    pub start: Option<Indecies>,
     pub element: Vec<()>,
     pub code: Vec<(Vec<(u32, ValueType)>, Vec<Instructions>)>,
-    pub data: Vec<()>,
+    pub data: Vec<DataSegment>,
     pub data_count: Option<u32>,
 }
 
@@ -60,7 +60,9 @@ impl WasmSections {
                 }
                 4 => sections.tables = read_vec(reader)?,
                 5 => sections.memory = read_vec(reader)?,
-                6 => todo!("global section"),
+                6 => sections.global = (0..reader.read_uleb128::<u32>()?).map(|_| {
+					Ok((reader.read::<GlobalType>()?, read_expr(reader)?))
+				}).collect::<Result<_, WasmParserError>>()?,
                 7 => {
                     sections.export = (0..reader.read_uleb128::<u32>()?)
                         .map(|_| {
@@ -85,7 +87,7 @@ impl WasmSections {
                         })
                         .collect::<Result<_, _>>()?
                 }
-                8 => todo!("start section"),
+                8 => sections.start = Some(reader.read_uleb128::<u32>().map(Indecies::FuncIdx)?),
                 9 => todo!("element section"),
                 10 => {
 					
@@ -96,12 +98,7 @@ impl WasmSections {
 						let code_bytes = reader.read_bytes(bytes_end - reader.get_current_offset())?.to_vec();
 						
 						let mut code_reader = ByteReader::from_vec(&code_bytes);
-						let mut opcodes = vec![];
-
-						while let Some(byte) = code_reader.peak::<u8>().ok() {
-							if byte == 0x0B { break } // End of expression
-							opcodes.push(code_reader.read::<Instructions>()?);
-						}
+						let opcodes = read_expr(&mut code_reader)?;
 
 						println!("Opcodes:\n{:#?}", opcodes);
 
@@ -110,7 +107,7 @@ impl WasmSections {
 					}).collect::<Result<_,WasmParserError>>()?;
 
 				},
-                11 => todo!("data section"),
+                11 => sections.data = read_vec::<DataSegment>(reader)?,
                 12 => todo!("data_count section"),
 
                 id => return Err(WasmParserError::InvalidSectionId { id }),

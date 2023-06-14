@@ -1,9 +1,13 @@
 #![allow(non_camel_case_types, unused, non_snake_case)]
-use crate::leb128::Leb128Readers;
+use crate::{
+    instructions::{read_expr, Instructions},
+    leb128::Leb128Readers,
+};
 use bytereader::{ByteReader, ByteReaderError, FromByteReader};
 use std::ops::{RangeFrom, RangeInclusive};
 
 pub type MemType = Limits;
+pub type Expr = Vec<Instructions>;
 
 #[derive(Debug)]
 pub enum Indecies {
@@ -250,6 +254,41 @@ impl FromByteReader for ImportDesc {
             0x03 => ImportDesc::GlobalType(reader.read()?),
 			_ => unreachable!("Check the wasm spec for more info: https://webassembly.github.io/spec/core/binary/modules.html#binary-importsec")
 
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct DataSegment {
+    mode: SegmentMode,
+    bytes: Vec<u8>,
+}
+#[derive(Debug)]
+pub enum SegmentMode {
+    Passive,
+    Active { memory_index: u32, offset: Expr },
+}
+
+impl FromByteReader for DataSegment {
+    fn read_from_byte_reader(reader: &mut ByteReader) -> Result<Self, ByteReaderError>
+    where
+        Self: Sized,
+    {
+        let bitfield = reader.read_uleb128::<u32>()?;
+        Ok(DataSegment {
+            mode: if bitfield & 0b01 == 0 {
+                SegmentMode::Active {
+                    offset: read_expr(reader)?,
+                    memory_index: if bitfield == 2 {
+                        reader.read_uleb128::<u32>()?
+                    } else {
+                        0
+                    },
+                }
+            } else {
+                SegmentMode::Passive
+            },
+            bytes: read_vec::<u8>(reader)?,
         })
     }
 }

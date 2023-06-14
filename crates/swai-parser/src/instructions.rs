@@ -1,24 +1,24 @@
-use bytereader::FromByteReader;
+use bytereader::{ByteReader, ByteReaderError, FromByteReader};
 
-use crate::{leb128::Leb128Readers, types::Indecies};
+use crate::{error::WasmParserError, leb128::Leb128Readers, types::Indecies};
 
 #[allow(non_camel_case_types)]
 #[derive(Debug)]
 pub enum Instructions {
     // Control Instructions
-    BlockType,    // 0x40
-    Unreachable,  // 0x00
-    Nop,          // 0x01
-    Block,        // 0x02
-    Loop,         // 0x03
-    IfElse,       // 0x04  0x0B
-    IfElseJmp,    // 0x04  0x05
-    Br,           // 0x0C
-    BrIf,         // 0x0D
-    BrTable,      // 0x0E
-    Return,       // 0x0F
-    Call,         // 0x10
-    CallIndirect, // 0x11
+    BlockType,      // 0x40
+    Unreachable,    // 0x00
+    Nop,            // 0x01
+    Block,          // 0x02
+    Loop,           // 0x03
+    IfElse,         // 0x04  0x0B
+    IfElseJmp,      // 0x04  0x05
+    Br,             // 0x0C
+    BrIf,           // 0x0D
+    BrTable,        // 0x0E
+    Return,         // 0x0F
+    Call(Indecies), // 0x10
+    CallIndirect,   // 0x11
 
     // Reference Instructions
     RefNull,   // 0xD0
@@ -79,10 +79,10 @@ pub enum Instructions {
     MemoryFill,   // 0xFC 11
 
     // Numeric Instructions
-    i32_const, // 0x41
-    i64_const, // 0x42
-    f32_const, // 0x43
-    f64_const, // 0x44
+    i32_const(i32), // 0x41
+    i64_const,      // 0x42
+    f32_const,      // 0x43
+    f64_const,      // 0x44
 
     i32_eqz,  // 0x45
     i32_eq,   // 0x46
@@ -240,7 +240,9 @@ impl FromByteReader for Instructions {
         Self: Sized,
     {
         Ok(match reader.read::<u8>()? {
+            0x10 => Instructions::Call(reader.read_uleb128::<u32>().map(Indecies::FuncIdx)?),
             0x20 => Instructions::LocalGet(reader.read_uleb128::<u32>().map(Indecies::LocalIdx)?),
+            0x41 => Instructions::i32_const(reader.read_leb128::<i32>()?),
             0x6A => Instructions::i32_add,
             opcode_id => {
                 return Err(bytereader::ByteReaderError::UnknownError(format!(
@@ -250,4 +252,17 @@ impl FromByteReader for Instructions {
             }
         })
     }
+}
+
+pub fn read_expr(reader: &mut ByteReader) -> Result<Vec<Instructions>, ByteReaderError> {
+    let mut opcodes = vec![];
+
+    while let Some(byte) = reader.peak::<u8>().ok() {
+        if byte == 0x0B {
+            break;
+        } // End of expression
+        opcodes.push(reader.read::<Instructions>()?);
+    }
+    reader.jump(1); // jump over the 0x0B escape byte
+    return Ok(opcodes);
 }

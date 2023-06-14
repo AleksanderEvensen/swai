@@ -19,6 +19,7 @@ impl WasmModule {
     }
     pub fn from_bytes(bytes: &[u8]) -> Result<WasmModule, WasmParserError> {
         let mut reader = ByteReader::from_vec(bytes);
+        println!("{:?}", reader.peak_rest());
         let Ok(_magic) = reader.read_expect(b"\0asm") else {
 			return Err(WasmParserError::InvalidWasmBytes { message: "The first four bytes in an wasm file / byte buffer should start with '\\0asm' (0x00, 0x61, 0x73, 0x6D)".to_string() })
 		};
