@@ -3,7 +3,7 @@ use bytereader::{ByteReader, ByteReaderError, FromByteReader};
 use crate::{error::WasmParserError, leb128::Leb128Readers, types::Indecies};
 
 #[allow(non_camel_case_types)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Instructions {
     // Control Instructions
     BlockType,      // 0x40
@@ -48,41 +48,41 @@ pub enum Instructions {
     TableFill, // 0xFC 17
 
     // Memory Instructions
-    i32_load,     // 0x28
-    i64_load,     // 0x29
-    f32_load,     // 0x2A
-    f64_load,     // 0x2B
-    i32_load_8s,  // 0x2C
-    i32_load_8u,  // 0x2D
-    i32_load_16s, // 0x2E
-    i32_load_16u, // 0x2F
-    i64_load_8s,  // 0x30
-    i64_load_8u,  // 0x31
-    i64_load_16s, // 0x32
-    i64_load_16u, // 0x33
-    i64_load_32s, // 0x34
-    i64_load_32u, // 0x35
-    i32_store,    // 0x36
-    i64_store,    // 0x37
-    f32_store,    // 0x38
-    f64_store,    // 0x39
-    i32_store_8,  // 0x3A
-    i32_store_16, // 0x3B
-    i64_store_8,  // 0x3C
-    i64_store_16, // 0x3D
-    i64_store_32, // 0x3E
-    MemorySize,   // 0x3F 0x00
-    MemoryGrow,   // 0x40 0x00
-    MemoryInit,   // 0xFC 8
-    DataDrop,     // 0xFC 9
-    MemoryCopy,   // 0xFC 10
-    MemoryFill,   // 0xFC 11
+    i32_load,             // 0x28
+    i64_load,             // 0x29
+    f32_load,             // 0x2A
+    f64_load,             // 0x2B
+    i32_load_8s,          // 0x2C
+    i32_load_8u,          // 0x2D
+    i32_load_16s,         // 0x2E
+    i32_load_16u,         // 0x2F
+    i64_load_8s,          // 0x30
+    i64_load_8u,          // 0x31
+    i64_load_16s,         // 0x32
+    i64_load_16u,         // 0x33
+    i64_load_32s,         // 0x34
+    i64_load_32u,         // 0x35
+    i32_store,            // 0x36
+    i64_store,            // 0x37
+    f32_store,            // 0x38
+    f64_store,            // 0x39
+    i32_store_8,          // 0x3A
+    i32_store_16,         // 0x3B
+    i64_store_8,          // 0x3C
+    i64_store_16,         // 0x3D
+    i64_store_32,         // 0x3E
+    MemorySize,           // 0x3F 0x00
+    MemoryGrow,           // 0x40 0x00
+    MemoryInit(Indecies), // 0xFC 8
+    DataDrop,             // 0xFC 9
+    MemoryCopy,           // 0xFC 10
+    MemoryFill,           // 0xFC 11
 
     // Numeric Instructions
     i32_const(i32), // 0x41
-    i64_const,      // 0x42
-    f32_const,      // 0x43
-    f64_const,      // 0x44
+    i64_const(i64), // 0x42
+    f32_const(f32), // 0x43
+    f64_const(f64), // 0x44
 
     i32_eqz,  // 0x45
     i32_eq,   // 0x46
@@ -244,6 +244,23 @@ impl FromByteReader for Instructions {
             0x20 => Instructions::LocalGet(reader.read_uleb128::<u32>().map(Indecies::LocalIdx)?),
             0x41 => Instructions::i32_const(reader.read_leb128::<i32>()?),
             0x6A => Instructions::i32_add,
+
+            0xFC => match reader.read_uleb128::<u32>()? {
+                8 => {
+                    let v =
+                        Instructions::MemoryInit(Indecies::DataIdx(reader.read_uleb128::<u32>()?));
+                    reader.read_expect(&[0x00])?;
+                    v
+                }
+
+                variant => {
+                    return Err(bytereader::ByteReaderError::UnknownError(format!(
+                        "Invalid instruction opcode variant for opcode '0xFC': '{}'",
+                        variant
+                    )))
+                }
+            },
+
             opcode_id => {
                 return Err(bytereader::ByteReaderError::UnknownError(format!(
                     "Invalid instruction opcode id: '0x{:X?}'",

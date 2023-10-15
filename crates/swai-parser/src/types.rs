@@ -2,6 +2,7 @@
 use crate::{
     instructions::{read_expr, Instructions},
     leb128::Leb128Readers,
+    sections::WasmSections,
 };
 use bytereader::{ByteReader, ByteReaderError, FromByteReader};
 use std::ops::{RangeFrom, RangeInclusive};
@@ -9,7 +10,7 @@ use std::ops::{RangeFrom, RangeInclusive};
 pub type MemType = Limits;
 pub type Expr = Vec<Instructions>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Indecies {
     TypeIdx(u32),
     FuncIdx(u32),
@@ -20,6 +21,18 @@ pub enum Indecies {
     DataIdx(u32),
     LocalIdx(u32),
     LabelIdx(u32),
+}
+
+impl Indecies {
+    pub fn get_function(&self, sections: &WasmSections) -> Option<Vec<Indecies>> {
+        match self {
+            Indecies::FuncIdx(func_index) => {
+                // sections.functions.get(func_index as usize)
+                todo!()
+            }
+            invalid_index => todo!(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -260,8 +273,8 @@ impl FromByteReader for ImportDesc {
 
 #[derive(Debug)]
 pub struct DataSegment {
-    mode: SegmentMode,
-    bytes: Vec<u8>,
+    pub mode: SegmentMode,
+    pub bytes: Vec<u8>,
 }
 #[derive(Debug)]
 pub enum SegmentMode {

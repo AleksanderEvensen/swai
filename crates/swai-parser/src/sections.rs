@@ -90,7 +90,6 @@ impl WasmSections {
                 8 => sections.start = Some(reader.read_uleb128::<u32>().map(Indecies::FuncIdx)?),
                 9 => todo!("element section"),
                 10 => {
-					
 					sections.code = (0..reader.read_uleb128::<u32>()?).map(|_| {
 						let code_sec_bytes = reader.read_uleb128::<u32>()?;
 						let bytes_end = reader.get_current_offset() + code_sec_bytes as usize;
@@ -102,13 +101,12 @@ impl WasmSections {
 
 						println!("Opcodes:\n{:#?}", opcodes);
 
-
 						Ok((locals, opcodes))
 					}).collect::<Result<_,WasmParserError>>()?;
 
 				},
                 11 => sections.data = read_vec::<DataSegment>(reader)?,
-                12 => todo!("data_count section"),
+                12 => { sections.data_count = reader.read_uleb128::<u32>().ok() },
 
                 id => return Err(WasmParserError::InvalidSectionId { id }),
             }

@@ -8,7 +8,7 @@ use crate::sections::WasmSections;
 
 #[derive(Debug)]
 pub struct WasmModule {
-    sections: WasmSections,
+    pub sections: WasmSections,
 }
 
 impl WasmModule {
