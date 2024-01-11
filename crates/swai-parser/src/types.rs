@@ -27,7 +27,10 @@ impl Indecies {
     pub fn get_function(&self, sections: &WasmSections) -> Option<Vec<Indecies>> {
         match self {
             Indecies::FuncIdx(func_index) => {
-                // sections.functions.get(func_index as usize)
+                let _fn_sec = sections.functions.get(*func_index as usize)?;
+
+                dbg!(&_fn_sec);
+                dbg!(func_index);
                 todo!()
             }
             invalid_index => todo!(),
